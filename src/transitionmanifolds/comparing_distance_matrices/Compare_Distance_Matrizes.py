@@ -19,7 +19,7 @@ import warnings
 def main(Wasserstein_exakt, reduce_sample_size_bool, num_x_ancherpoints, samples_per_anchor_reduction, skip_plotting):
     # Hyperparameters
     path_samples = "data/comparing_distance_matrices/x_data_Check.npz"
-    path_distance_matrix = f'data/comparing_distance_matrices/distance_matrices.npz'
+    path_distance_matrix = f'data/comparing_distance_matrices/distance_matrices_sample_numAnchorPoints_{num_x_ancherpoints}.npz'
 
     # Reduction parameters for amount of anchor points and reduction
     num_anchor_points_reduction = num_x_ancherpoints
@@ -284,7 +284,7 @@ def generate_distance_matrices(path_distance_matrix, sample_path, num_anchor_poi
 
         print('Starte MMD Computation:')
         time_start = time.perf_counter()
-        distance_matrix_MMD, _ = calculate_distance_MMD(x_samples, sigma=sigma)
+        distance_matrix_MMD = calculate_distance_MMD(x_samples, sigma=sigma)
         print(f'Zeit: {time.perf_counter()-time_start}')
 
         print('Starte Wasserstein Computation:')
@@ -399,8 +399,8 @@ def samples(num_anchors, num_runs, d):
 
 
 if __name__ == "__main__":
-    # # Ignore warnings
-    # warnings.filterwarnings("ignore")
+    # Ignore warnings
+    warnings.filterwarnings("ignore")
 
     # Hyperparameter
     Wasserstein_exakt = False
