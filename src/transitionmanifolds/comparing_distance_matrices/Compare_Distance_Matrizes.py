@@ -4,21 +4,26 @@ from scipy.stats import spearmanr
 from scipy.spatial import procrustes
 from sklearn.manifold import MDS
 from pathlib import Path
+from numpy.random import default_rng
+
 
 import time
 
-from interpretable_cvs import transition_manifold as tm_operations
+# from interpretable_cvs import transition_manifold as tm_operations # ANPASSUNGEN:
+from transitionmanifolds import DistanceMatrixGaussianMMD, DistanceMatrixWasserstein
+
 
 import warnings
 
 
-def main(Wasserstein_exakt, reduce_sample_size_bool, num_x_ancherpoints, skip_plotting):
+def main(Wasserstein_exakt, reduce_sample_size_bool, num_x_ancherpoints, samples_per_anchor_reduction, skip_plotting):
     # Hyperparameters
-    path_samples = "data/data_old/x_data_Check.npz"
-    path_distance_matrix = f'data_testing_distance_Wasserstein/test_distance_matrices_numAnchorPoints{num_x_ancherpoints}.npz'
+    path_samples = "data/comparing_distance_matrices/x_data_Check.npz"
+    path_distance_matrix = f'data/comparing_distance_matrices/distance_matrices.npz'
 
-    samples_per_anchor_reduction = 100
+    # Reduction parameters for amount of anchor points and reduction
     num_anchor_points_reduction = num_x_ancherpoints
+    samples_per_anchor_reduction = samples_per_anchor_reduction # TODO: Überflüssig
 
     k = 50   # For kkn_overlap
 
@@ -269,12 +274,8 @@ def generate_distance_matrices(path_distance_matrix, sample_path, num_anchor_poi
 
         # Reduce the sample size
         if reduce_sample_size_bool:
-            # x_samples_reduced = reduce_sample_size(x_samples, samples_per_anchor)
-            per_slice = False   # TODO: True war eigentlich gedacht
-            x_samples_reduced = random_subsample_along_axis(x=x_samples, k=samples_per_anchor, axis=1, per_slice=per_slice) # TODO: Noch prüfen
-            x_samples_reduced = random_subsample_along_axis(x=x_samples_reduced, k=num_anchor_points, axis=0, per_slice=False)
-            assert x_samples_reduced.shape == (num_anchor_points,samples_per_anchor, x_samples_reduced.shape[2])
-            x_samples = x_samples_reduced
+            x_samples = reduce_sample_size(x_samples, num_anchor_points, samples_per_anchor)
+
 
         # Calculate distance matrices with time measurement
         dim = x_samples.shape[2]
@@ -295,16 +296,18 @@ def generate_distance_matrices(path_distance_matrix, sample_path, num_anchor_poi
         np.savez(file=path_distance_matrix, MMD=distance_matrix_MMD, Wasserstein=distance_matrix_Wasserstein)
 
 def calculate_distance_MMD(x_samples, sigma):
-    return tm_operations._numba_dist_matrix_gaussian_kernel(x_samples, sigma)
+    algo = DistanceMatrixGaussianMMD(bandwidth=sigma)   # Future: apply different settings
+    return algo(data=x_samples)
 
 def calculate_distance_Wasserstein(x_samples, Wasserstein_exakt, reg_factor):
-    return tm_operations._dist_matrix_Wasserstein(x_samples, regularize=not Wasserstein_exakt, reg_factor=reg_factor)
+    algo = DistanceMatrixWasserstein(regularize=not Wasserstein_exakt, reg_factor=reg_factor)  # Future: apply different settings
+    return algo(data=x_samples)
 
 def load_matrices(path_distance_matrix):
     data = np.load(file=path_distance_matrix)
     return data['MMD'], data['Wasserstein']
 
-def reduce_sample_size(x_samples, samples_per_anchor=100):      # TODO: Code nochmal durchleuchten
+def reduce_sample_size_deprecated(x_samples, samples_per_anchor=100):      # TODO: Code nochmal durchleuchten
     n_samples, n_features, n_dim = x_samples.shape
     k = samples_per_anchor  # Anzahl Features
 
@@ -316,6 +319,14 @@ def reduce_sample_size(x_samples, samples_per_anchor=100):      # TODO: Code noc
 
     # Advanced Indexing
     x_samples_reduced = x_samples[np.arange(n_samples)[:, None], indices]
+    return x_samples_reduced
+
+def reduce_sample_size(x_samples, num_anchor_points, samples_per_anchor):
+    per_slice = False   # TODO: True war eigentlich gedacht
+    x_samples_reduced = random_subsample_along_axis(x=x_samples, k=samples_per_anchor, axis=1, per_slice=per_slice) # TODO: Noch prüfen
+    x_samples_reduced = random_subsample_along_axis(x=x_samples_reduced, k=num_anchor_points, axis=0, per_slice=False)
+
+    assert x_samples_reduced.shape == (num_anchor_points,samples_per_anchor, x_samples_reduced.shape[2])
     return x_samples_reduced
 
 def random_subsample_along_axis(x, k, axis=1, per_slice=True, replace=False, rng=None):     # TODO: Code nochmal durchleuchten
@@ -375,6 +386,17 @@ def random_subsample_along_axis(x, k, axis=1, per_slice=True, replace=False, rng
 
     return result
 
+def samples(num_anchors, num_runs, d):
+    rng = default_rng(123)
+    # num_anchors = 6
+    # num_runs = 20
+    # d = 3
+    samples = np.zeros((num_anchors, num_runs, d))
+    for i in range(num_anchors):
+        samples[i] = rng.normal(i, 1, size=(num_runs, d))
+    return samples
+
+
 
 if __name__ == "__main__":
     # # Ignore warnings
@@ -385,10 +407,13 @@ if __name__ == "__main__":
     reduce_sample_size_bool = True
     skip_plotting = True
 
-    shape = (2000, 100, 900)
-    num_list = [10,50,100,300]
+    # Reduction parameter
+    shape_of_x_data = (2000, 100, 900)      # TODO: Anpassen/Löschen
+    num_anchorpoints_list = [10,50,100,300]
+    samples_per_anchor_reduction = 100
 
-    for num_x_ancherpoints in num_list:
+
+    for num_x_ancherpoints in num_anchorpoints_list:
         print('#############################################')
         print(f'Run mit {num_x_ancherpoints} zufälligen anchorpoints')
-        main(Wasserstein_exakt, reduce_sample_size_bool, num_x_ancherpoints, skip_plotting)
+        main(Wasserstein_exakt, reduce_sample_size_bool, num_x_ancherpoints, samples_per_anchor_reduction, skip_plotting)
